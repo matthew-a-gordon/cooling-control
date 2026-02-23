@@ -1,166 +1,129 @@
-# Liquidctl Temperature Monitor
+# liquidctl-monitor
 
-A comprehensive temperature monitoring and fan/pump control system for liquid cooling setups using liquidctl and NVIDIA GPUs.
+> [!WARNING]
+> This controls your PC's cooling. Take personal accountability for understanding what the software does and whether you're comfortable trusting your PC to it. I think it has reasonable safety features, but use at your own risk.
 
-## Features
+A single-binary Rust daemon that monitors CPU, GPU, coolant, and NIC temperatures
+and controls an Aquacomputer Quadro fan controller and D5 Next pump/reservoir.
 
-- **Multi-sensor monitoring**: CPU, GPU, coolant, and motherboard temperature reading
-- **Intelligent control**: 
-  - Radiator fans (fan1+fan2) controlled by coolant temperature
-  - Motherboard fan (fan3) controlled by motherboard/chipset temperature
-  - Pump speed controlled by higher of CPU/GPU temperature
-- **Data smoothing**: Exponential smoothing to prevent rapid fan/pump speed changes
-- **Configurable curves**: Customizable temperature-to-speed mappings
-- **Systemd integration**: Runs as a system service with automatic restart
-- **Comprehensive logging**: Detailed logs for monitoring and debugging
+## How it works
 
-## Hardware Requirements
+| Layer | Role |
+|---|---|
+| **sysfs / k10temp** | Read CPU Tccd die temperatures |
+| **sysfs / d5next** | Read coolant temperature (kernel hwmon driver) |
+| **sysfs / NIC hwmon** | Read PHY + MAC temperatures |
+| **NVML** | Read NVIDIA GPU temperature |
+| **hidraw (HID feature reports)** | Write fan/pump speed commands to devices |
 
-- NVIDIA GPU (for GPU temperature monitoring)
-- Aquacomputer Quadro (for fan control: fan1+fan2 radiator, fan3 motherboard)
-- Aquacomputer D5 Next (for pump control and coolant temperature)
-- Linux system with systemd
-- lm-sensors package (for motherboard temperature)
+All sensor reads go through the kernel's hwmon interface — no libusb, no
+exclusive device claims.  The daemon coexists peacefully with the
+`aquacomputer_d5next` kernel driver.
+
+## Hardware
+
+- Aquacomputer Quadro — controls fan1 + fan2 (radiator), fan3 (NIC cooling)
+- Aquacomputer D5 Next — controls pump speed, provides coolant temperature
+- NVIDIA GPU — temperature read via NVML (optional; skipped gracefully if absent)
 
 ## Installation
 
-1. **Install dependencies**:
-   ```bash
-   pip3 install -r requirements.txt
-   ```
+```bash
+# Build dependencies (Fedora/RHEL)
+sudo dnf install systemd-devel
 
-2. **Run the installation script**:
-   ```bash
-   sudo ./install.sh
-   ```
+# Build and install
+sudo ./install.sh
+```
 
-The installation script will:
-- Copy files to `/opt/liquidctl-monitor/`
-- Create configuration at `/etc/liquidctl-monitor/config.json`
-- Install and start the systemd service
-- Set up logging in `/var/log/liquidctl-monitor/`
+The script builds the Rust binary, copies it to `/opt/liquidctl-monitor/`,
+installs the systemd unit, and creates a default config if one doesn't exist.
 
 ## Configuration
 
-Edit `/etc/liquidctl-monitor/config.json` to customize:
+`/etc/liquidctl-monitor/config.json` — edited live, read at startup.
 
-### Monitoring Settings
-```json
-"monitoring": {
-    "interval": 2.0,           // Seconds between readings
-    "history_size": 10,        // Number of readings to keep for smoothing
-    "smoothing_factor": 0.2    // Smoothing factor (0.0-1.0, lower = more smoothing)
-                               // CPU/GPU get additional smoothing (×0.5) to prevent pump micro-adjustments
+```jsonc
+{
+    "monitoring": {
+        "interval": 2.0,         // seconds between control cycles
+        "smoothing_factor": 0.2  // EMA alpha; CPU/GPU get ×0.5 for extra damping
+    },
+    "fan_curve": {
+        // [temp_°C, duty_%, temp_°C, duty_%, …] — linearly interpolated
+        "radiator_profile":    [20, 10, 30, 25, 35, 50, 40, 80, 45, 100],
+        "motherboard_profile": [50, 25, 60, 50, 70, 100]
+    },
+    "pump_curve": {
+        "profile": [30, 5, 40, 10, 50, 25, 60, 65, 70, 100]
+    },
+    "temperature_limits": {
+        // At 90% of a limit: log WARN + desktop notification (urgency=normal)
+        // At 100% of a limit: ramp all fans/pump to 100%, notify (urgency=critical), then poweroff
+        "cpu_max": 95.0,
+        "gpu_max": 90.0,
+        "coolant_max": 50.0,
+        "motherboard_max": 80.0
+    }
 }
 ```
 
-### Fan and Pump Curves (Temperature-Duty Profiles)
-```json
-"fan_curve": {
-    "radiator_profile": [20, 20, 30, 40, 35, 60, 40, 80, 45, 100],  // [temp1, duty1, temp2, duty2, ...]
-    "motherboard_profile": [30, 30, 40, 50, 50, 70, 60, 85, 70, 100]
-},
-"pump_curve": {
-    "profile": [30, 30, 40, 50, 50, 70, 60, 85, 70, 100]
-}
-```
+### Control routing
 
-**Profile Format**: `[temp1, duty1, temp2, duty2, ...]`
-- **Radiator fans**: 20°C→20%, 30°C→40%, 35°C→60%, 40°C→80%, 45°C→100%
-- **Motherboard fan**: 30°C→30%, 40°C→50%, 50°C→70%, 60°C→85%, 70°C→100%
-- **Pump**: 30°C→30%, 40°C→50%, 50°C→70%, 60°C→85%, 70°C→100%
+| Fan/pump | Controlled by | Device |
+|---|---|---|
+| fan1 + fan2 | coolant temp | Quadro |
+| fan3 | NIC (PHY/MAC) temp | Quadro |
+| fan4 | not in config → 100% | Quadro |
+| pump | max(CPU, GPU) temp | D5 Next |
+| D5 fan | not in config → 100% | D5 Next |
 
-**Benefits of Profile Approach**:
-- **Smooth curves**: Liquidctl interpolates between points for gradual speed changes
-- **Hardware-based**: Profiles are stored in device firmware for consistent control
-- **No software dependency**: Curves work even if monitoring software stops
-- **Better performance**: More responsive than fixed percentage ranges
+If a temperature source is unavailable, its channel(s) fall back to 100% duty
+(more cooling, never less).
 
-### Hardware Settings
-```json
-"hardware": {
-    "quadro_device": "auto",    // Auto-detect Quadro fan controller
-    "d5_device": "auto"         // Auto-detect D5 Next pump controller
-}
-```
-
-## Usage
-
-### Service Management
-```bash
-# Check status
-systemctl status liquidctl-monitor.service
-
-# View logs
-journalctl -u liquidctl-monitor.service -f
-
-# Stop service
-systemctl stop liquidctl-monitor.service
-
-# Start service
-systemctl start liquidctl-monitor.service
-
-# Restart service
-systemctl restart liquidctl-monitor.service
-```
-
-### Manual Testing
-```bash
-# Run manually for testing
-sudo python3 /opt/liquidctl-monitor/temperature_monitor.py
-```
-
-## Logging
-
-Logs are written to:
-- Systemd journal: `journalctl -u liquidctl-monitor.service`
-- File: `/var/log/liquidctl-monitor/monitor.log`
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Permission denied errors**:
-   - Ensure the service is running as root
-   - Check that the user has access to thermal sensors and GPU
-
-2. **Liquidctl device not found**:
-   - Verify your device is supported by liquidctl
-   - Check device permissions (may need to add user to appropriate groups)
-
-3. **Temperature readings are None**:
-   - Verify thermal sensors are accessible
-   - Check NVIDIA driver installation
-   - Ensure liquidctl device is properly connected
-
-### Debug Mode
-
-To run with more verbose logging, modify the service file or run manually:
-```bash
-# Edit service file to add debug logging
-sudo systemctl edit liquidctl-monitor.service
-```
-
-## Uninstallation
+## Service management
 
 ```bash
-sudo systemctl stop liquidctl-monitor.service
-sudo systemctl disable liquidctl-monitor.service
+# View live logs
+journalctl -u liquidctl-monitor -f
+
+# Status
+systemctl status liquidctl-monitor
+
+# Restart after config change
+systemctl restart liquidctl-monitor
+```
+
+### Debug / verbose logging
+
+```bash
+sudo RUST_LOG=debug /opt/liquidctl-monitor/liquidctl-monitor
+```
+
+## Manual test run
+
+```bash
+sudo ./target/release/liquidctl-monitor
+```
+
+Verify fan speeds respond by reading sysfs before and after startup:
+
+```bash
+# Quadro: fan1-4 PWM values (0–255)
+cat /sys/class/hwmon/hwmon5/pwm{1,2,3,4}
+
+# D5 Next: pump PWM value
+cat /sys/class/hwmon/hwmon4/pwm1
+```
+
+## Uninstall
+
+```bash
+sudo systemctl stop liquidctl-monitor
+sudo systemctl disable liquidctl-monitor
 sudo rm /etc/systemd/system/liquidctl-monitor.service
 sudo rm -rf /opt/liquidctl-monitor
-sudo rm -rf /etc/liquidctl-monitor
-sudo rm -rf /var/log/liquidctl-monitor
 sudo systemctl daemon-reload
 ```
 
-## Safety Notes
-
-- The system includes safety limits to prevent damage
-- Monitor logs during initial setup
-- Test fan/pump curves in a safe environment
-- Ensure proper cooling before running at high loads
-
-## License
-
-This project is provided as-is for educational and personal use.
-
+Config (`/etc/liquidctl-monitor/`) and any logs are left in place.

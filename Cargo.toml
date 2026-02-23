@@ -1,0 +1,19 @@
+[package]
+name = "liquidctl-monitor"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "liquidctl-monitor"
+path = "src/main.rs"
+
+[dependencies]
+hidapi             = { version = "2",   default-features = false, features = ["linux-native"] }
+nvml-wrapper       = "0.12"
+serde              = { version = "1",   features = ["derive"] }
+serde_json         = "1"
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+signal-hook        = "0.3"
+anyhow             = "1"
+crc                = "3"

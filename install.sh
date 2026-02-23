@@ -23,10 +23,11 @@ mkdir -p /opt/liquidctl-monitor
 mkdir -p /etc/liquidctl-monitor
 mkdir -p /var/log/liquidctl-monitor
 
-# Copy files
-echo "Installing files..."
-cp temperature_monitor.py /opt/liquidctl-monitor/
-chmod +x /opt/liquidctl-monitor/temperature_monitor.py
+# Build Rust binary
+echo "Building Rust binary..."
+cargo build --release
+cp target/release/liquidctl-monitor /opt/liquidctl-monitor/
+chmod +x /opt/liquidctl-monitor/liquidctl-monitor
 
 # Install systemd service
 echo "Installing systemd service..."
