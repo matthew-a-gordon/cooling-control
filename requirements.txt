@@ -1,4 +1,0 @@
-liquidctl>=1.12.0
-nvidia-ml-py>=11.0.0
-psutil>=5.9.0
-

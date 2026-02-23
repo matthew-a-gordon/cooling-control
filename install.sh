@@ -21,9 +21,11 @@ echo "Creating directories..."
 mkdir -p /opt/cooling-control
 mkdir -p /etc/cooling-control
 
-# Build Rust binary
+# Build Rust binary as the invoking user (root won't have rustup/cargo)
 echo "Building Rust binary..."
-cargo build --release
+REAL_USER=${SUDO_USER:-$USER}
+REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+sudo -u "$REAL_USER" env HOME="$REAL_HOME" PATH="$REAL_HOME/.cargo/bin:$PATH" cargo build --release
 cp target/release/cooling-control /opt/cooling-control/
 chmod +x /opt/cooling-control/cooling-control
 
