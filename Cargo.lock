@@ -40,6 +40,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
+name = "cooling-control"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "crc",
+ "hidapi",
+ "nvml-wrapper",
+ "serde",
+ "serde_json",
+ "signal-hook",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "crc"
 version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -185,21 +200,6 @@ checksum = "3c8469b4a23b962c1396b9b451dda50ef5b283e8dd309d69033475fa9b334324"
 dependencies = [
  "libc",
  "pkg-config",
-]
-
-[[package]]
-name = "liquidctl-monitor"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "crc",
- "hidapi",
- "nvml-wrapper",
- "serde",
- "serde_json",
- "signal-hook",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

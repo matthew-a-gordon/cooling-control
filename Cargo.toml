@@ -1,10 +1,10 @@
 [package]
-name = "liquidctl-monitor"
+name = "cooling-control"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "liquidctl-monitor"
+name = "cooling-control"
 path = "src/main.rs"
 
 [dependencies]

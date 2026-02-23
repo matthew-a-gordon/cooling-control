@@ -19,7 +19,7 @@ use tracing::{error, info, warn};
 fn main() {
     let _log_guard = logging::init();
 
-    let config = config::load("/etc/liquidctl-monitor/config.json").unwrap_or_else(|e| {
+    let config = config::load("/etc/cooling-control/config.json").unwrap_or_else(|e| {
         warn!("Config load error: {e} — using defaults");
         serde_json::from_value(serde_json::json!({
             "monitoring":          { "interval": 2.0, "history_size": 10, "smoothing_factor": 0.2 },

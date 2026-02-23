@@ -1,4 +1,4 @@
-# liquidctl-monitor
+# cooling-control
 
 > [!WARNING]
 > This controls your PC's cooling. Take personal accountability for understanding what the software does and whether you're comfortable trusting your PC to it. I think it has reasonable safety features, but use at your own risk.
@@ -36,12 +36,12 @@ sudo dnf install systemd-devel
 sudo ./install.sh
 ```
 
-The script builds the Rust binary, copies it to `/opt/liquidctl-monitor/`,
+The script builds the Rust binary, copies it to `/opt/cooling-control/`,
 installs the systemd unit, and creates a default config if one doesn't exist.
 
 ## Configuration
 
-`/etc/liquidctl-monitor/config.json` — edited live, read at startup.
+`/etc/cooling-control/config.json` — edited live, read at startup.
 
 ```jsonc
 {
@@ -85,25 +85,25 @@ If a temperature source is unavailable, its channel(s) fall back to 100% duty
 
 ```bash
 # View live logs
-journalctl -u liquidctl-monitor -f
+journalctl -u cooling-control -f
 
 # Status
-systemctl status liquidctl-monitor
+systemctl status cooling-control
 
 # Restart after config change
-systemctl restart liquidctl-monitor
+systemctl restart cooling-control
 ```
 
 ### Debug / verbose logging
 
 ```bash
-sudo RUST_LOG=debug /opt/liquidctl-monitor/liquidctl-monitor
+sudo RUST_LOG=debug /opt/cooling-control/cooling-control
 ```
 
 ## Manual test run
 
 ```bash
-sudo ./target/release/liquidctl-monitor
+sudo ./target/release/cooling-control
 ```
 
 Verify fan speeds respond by reading sysfs before and after startup:
@@ -119,11 +119,11 @@ cat /sys/class/hwmon/hwmon4/pwm1
 ## Uninstall
 
 ```bash
-sudo systemctl stop liquidctl-monitor
-sudo systemctl disable liquidctl-monitor
-sudo rm /etc/systemd/system/liquidctl-monitor.service
-sudo rm -rf /opt/liquidctl-monitor
+sudo systemctl stop cooling-control
+sudo systemctl disable cooling-control
+sudo rm /etc/systemd/system/cooling-control.service
+sudo rm -rf /opt/cooling-control
 sudo systemctl daemon-reload
 ```
 
-Config (`/etc/liquidctl-monitor/`) and any logs are left in place.
+Config (`/etc/cooling-control/`) and any logs are left in place.

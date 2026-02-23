@@ -1,15 +1,14 @@
 #!/bin/bash
-# Installation script for liquidctl temperature monitor
+# Installation script for cooling-control
 
 set -e
 
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-echo -e "${GREEN}Installing Liquidctl Temperature Monitor...${NC}"
+echo -e "${GREEN}Installing cooling-control...${NC}"
 
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then
@@ -19,25 +18,30 @@ fi
 
 # Create directories
 echo "Creating directories..."
-mkdir -p /opt/liquidctl-monitor
-mkdir -p /etc/liquidctl-monitor
-mkdir -p /var/log/liquidctl-monitor
+mkdir -p /opt/cooling-control
+mkdir -p /etc/cooling-control
 
 # Build Rust binary
 echo "Building Rust binary..."
 cargo build --release
-cp target/release/liquidctl-monitor /opt/liquidctl-monitor/
-chmod +x /opt/liquidctl-monitor/liquidctl-monitor
+cp target/release/cooling-control /opt/cooling-control/
+chmod +x /opt/cooling-control/cooling-control
 
 # Install systemd service
 echo "Installing systemd service..."
-cp liquidctl-monitor.service /etc/systemd/system/
+cp cooling-control.service /etc/systemd/system/
 systemctl daemon-reload
 
+# Migrate config from old location if present
+if [ -f /etc/liquidctl-monitor/config.json ] && [ ! -f /etc/cooling-control/config.json ]; then
+    echo "Migrating config from /etc/liquidctl-monitor/config.json..."
+    cp /etc/liquidctl-monitor/config.json /etc/cooling-control/config.json
+fi
+
 # Create default config if it doesn't exist
-if [ ! -f /etc/liquidctl-monitor/config.json ]; then
+if [ ! -f /etc/cooling-control/config.json ]; then
     echo "Creating default configuration..."
-    cat > /etc/liquidctl-monitor/config.json << 'EOF'
+    cat > /etc/cooling-control/config.json << 'EOF'
 {
     "monitoring": {
         "interval": 2.0,
@@ -66,32 +70,28 @@ EOF
 fi
 
 # Set permissions
-chown -R root:root /opt/liquidctl-monitor
-chown -R root:root /etc/liquidctl-monitor
-chown -R root:root /var/log/liquidctl-monitor
+chown -R root:root /opt/cooling-control
+chown -R root:root /etc/cooling-control
 
 # Enable and start service
 echo "Enabling and starting service..."
-systemctl enable liquidctl-monitor.service
-systemctl start liquidctl-monitor.service
+systemctl enable cooling-control.service
+systemctl start cooling-control.service
 
 # Check status
 echo "Checking service status..."
-if systemctl is-active --quiet liquidctl-monitor.service; then
+if systemctl is-active --quiet cooling-control.service; then
     echo -e "${GREEN}Service started successfully!${NC}"
 else
-    echo -e "${RED}Service failed to start. Check logs with: journalctl -u liquidctl-monitor.service${NC}"
+    echo -e "${RED}Service failed to start. Check logs with: journalctl -u cooling-control${NC}"
     exit 1
 fi
 
 echo -e "${GREEN}Installation complete!${NC}"
 echo ""
 echo "Useful commands:"
-echo "  Check status: systemctl status liquidctl-monitor.service"
-echo "  View logs: journalctl -u liquidctl-monitor.service -f"
-echo "  Stop service: systemctl stop liquidctl-monitor.service"
-echo "  Start service: systemctl start liquidctl-monitor.service"
-echo "  Restart service: systemctl restart liquidctl-monitor.service"
+echo "  Check status: systemctl status cooling-control"
+echo "  View logs:    journalctl -u cooling-control -f"
+echo "  Restart:      systemctl restart cooling-control"
 echo ""
-echo "Configuration file: /etc/liquidctl-monitor/config.json"
-echo "Log file: /var/log/liquidctl-monitor/monitor.log"
+echo "Configuration: /etc/cooling-control/config.json"

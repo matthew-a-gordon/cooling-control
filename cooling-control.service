@@ -1,5 +1,5 @@
 [Unit]
-Description=Liquidctl Temperature Monitor and Fan/Pump Controller
+Description=Cooling Control — temperature monitor and fan/pump controller
 After=multi-user.target
 Wants=network.target
 
@@ -7,7 +7,7 @@ Wants=network.target
 Type=simple
 User=root
 Group=root
-ExecStart=/opt/liquidctl-monitor/liquidctl-monitor
+ExecStart=/opt/cooling-control/cooling-control
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -18,7 +18,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/log/liquidctl-monitor /etc/liquidctl-monitor
+ReadWritePaths=/etc/cooling-control
 
 # Required capabilities for hardware access
 CapabilityBoundingSet=CAP_SYS_RAWIO
@@ -26,4 +26,3 @@ AmbientCapabilities=CAP_SYS_RAWIO
 
 [Install]
 WantedBy=multi-user.target
-
